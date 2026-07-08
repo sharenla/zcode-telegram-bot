@@ -1,5 +1,7 @@
 # ZCode Telegram Bot
 
+**中文** | [English](README.en.md)
+
 把智谱 ZCode Agent 接到 Telegram,通过聊天远程指挥 ZCode 干活。
 
 **核心特性:与本地 TUI 双向同步同一 session** —— 在手机上和 ZCode 对话,
@@ -25,6 +27,8 @@ Telegram ─► Bot ───►│ (JSON-RPC)   │◄─┘
 每用户绑定一个 ZCode `sessionId`,多轮对话上下文连续。
 Bot 与 TUI 各自持有 app-server 进程,共享同一个 SQLite,
 通过 `session/send`(流式)和 `session/events`(轮询)实现准实时双向同步。
+
+> 📸 演示截图/GIF 位置:`docs/`(待补充)
 
 ## 架构
 
