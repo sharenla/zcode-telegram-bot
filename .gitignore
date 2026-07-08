@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/sessions.json
+data/sessions.tmp
+logs/
+data/
+.git.old.backup/
