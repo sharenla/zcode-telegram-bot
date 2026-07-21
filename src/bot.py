@@ -74,6 +74,11 @@ class ZCodeTelegramBot:
             .token(self.config.telegram_token)
             .post_init(self.post_init)
             .post_shutdown(self.on_shutdown)
+            # get_updates 用长超时,撑过网络瞬断(默认 5s 太短,瞬断即失败)
+            # connect/read 都给到 30s,Telegram long-poll 本身会保持连接
+            .get_updates_connect_timeout(30)
+            .get_updates_read_timeout(30)
+            .get_updates_write_timeout(30)
             .build()
         )
         app.add_handler(CommandHandler("start", self.cmd_start))
@@ -86,7 +91,19 @@ class ZCodeTelegramBot:
         app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_message)
         )
+        # 注册 error handler:网络错误记录但不崩溃(python-telegram-bot 内部会重试)
+        app.add_error_handler(self.on_error)
         return app
+
+    async def on_error(self, update: object, context: "ContextTypes.DEFAULT_TYPE") -> None:
+        """全局错误处理:记录错误,网络错误不崩溃(polling 会自动重试)。"""
+        err = context.error
+        # 网络错误是瞬时的,polling 内部会重试,只记 debug 避免刷屏
+        from telegram.error import NetworkError, TimedOut
+        if isinstance(err, (NetworkError, TimedOut)):
+            logger.warning("网络错误(将自动重试): %s", err)
+        else:
+            logger.exception("处理更新时出错")
 
     async def post_init(self, application: Application) -> None:
         """Application 启动后初始化 app-server 同步层。"""
