@@ -114,6 +114,18 @@ class ZCodeTelegramBot:
             logger.info("✅ app-server 同步层已就绪")
         else:
             logger.info("ℹ️ USE_APP_SERVER=0,使用 --prompt 回退模式")
+        # 启动心跳:每 60s 记一条日志,供看门狗检测 polling 是否卡死
+        self._heartbeat_logger_task = asyncio.ensure_future(self._liveness_heartbeat())
+
+    async def _liveness_heartbeat(self) -> None:
+        """每 60 秒记一条 INFO 心跳。看门狗据此判断 polling 是否卡死。
+
+        polling 卡死后,这个协程也会停(event loop 被阻塞或任务被取消),
+        所以"心跳停了"= 进程异常,看门狗据此重启。
+        """
+        while True:
+            await asyncio.sleep(60)
+            logger.info("💓 心跳(运行中)")
 
     async def on_shutdown(self, application: Application) -> None:
         if self.sync:
