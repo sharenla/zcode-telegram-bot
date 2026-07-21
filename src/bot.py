@@ -454,6 +454,17 @@ class ZCodeTelegramBot:
             except AppServerError as e:
                 await update.message.reply_text(f"❌ 创建会话失败: {e}")
                 return
+        else:
+            # 已有 session:确保在本进程已 resume + subscribe
+            # (外部关联进来的 session,如 GUI 建的 / /sync 绑的,需要先 active)
+            if session_id not in self.sync.client.subscribed_sessions:
+                try:
+                    await self.sync.client.resume_session(session_id)
+                    await self.sync.client.subscribe(session_id)
+                    self._setup_watch(key, session_id)
+                except AppServerError as e:
+                    await update.message.reply_text(f"❌ 关联 session 失败: {e}")
+                    return
 
         # 群组共享 session:排队(同一 session 串行执行)
         lock = self._get_session_lock(session_id)

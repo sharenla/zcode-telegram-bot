@@ -114,6 +114,8 @@ class AppServerClient:
         self._perm_pending: dict[str, Any] = {}
         # _perm_cache: requestId → 已缓存的 decision 结果(审批完成后,后续重发直接回)
         self._perm_cache: dict[str, dict] = {}
+        # 已 subscribe 的 session 集合(避免重复 subscribe,也用于判断是否需要 resume)
+        self.subscribed_sessions: set[str] = set()
 
     # ---------- 生命周期 ----------
 
@@ -505,7 +507,9 @@ class AppServerClient:
             "afterSeq": after_seq,
             "includeSnapshot": include_snapshot,
         }
-        return await self.request("session/subscribe", params)
+        result = await self.request("session/subscribe", params)
+        self.subscribed_sessions.add(session_id)
+        return result
 
     async def send_message(
         self, session_id: str, content: str, expected_revision: Optional[int] = None
