@@ -478,6 +478,10 @@ class ZCodeTelegramBot:
         error = None
         EDIT_MIN_INTERVAL = 2.0  # Telegram 同条消息 edit 限流
 
+        # 启动 typing 心跳:Telegram 的 typing 状态只持续 5 秒,
+        # 思考/审批期间每 4 秒重发一次,让用户看到"正在输入"
+        typing_task = asyncio.ensure_future(self._typing_heartbeat(chat_id))
+
         try:
             async for ev in self.sync.send_stream(
                 session_id, prompt, turn_timeout=self.config.app_server_turn_timeout
@@ -532,6 +536,8 @@ class ZCodeTelegramBot:
             await ctx_safe_edit(chat_id, placeholder.message_id, f"❌ {e}")
             return
         finally:
+            # 停止 typing 心跳
+            typing_task.cancel()
             # 清理本 turn 的 permission 审批状态(避免内存堆积)
             self.sync.client.clear_perm_state()
             # 清理未决的 future(取消等待)
@@ -675,6 +681,16 @@ class ZCodeTelegramBot:
             except Exception:
                 pass
 
+    async def _typing_heartbeat(self, chat_id: int) -> None:
+        """周期性发送"正在输入"状态,直到被 cancel。
+
+        Telegram 的 typing 只持续 5 秒,所以每 4 秒重发一次。
+        覆盖整个思考 + 审批等待期间。被外部 cancel 后立即退出。
+        """
+        while True:
+            await ctx_safe_typing(chat_id)
+            await asyncio.sleep(4)
+
     async def _send_chunked(self, update: Update, text: str, footer: str) -> None:
         """发送结果,自动拆分超长消息。"""
         max_len = self.config.max_message_length
@@ -713,6 +729,17 @@ async def ctx_safe_delete(chat_id: int, message_id: int) -> None:
     app = _bot_ref.get("app")
     if app and app.bot:
         await app.bot.delete_message(chat_id=chat_id, message_id=message_id)
+
+
+async def ctx_safe_typing(chat_id: int) -> None:
+    """发送"正在输入"状态(Telegram 显示 typing,持续 5 秒)。"""
+    from telegram.constants import ChatAction
+    app = _bot_ref.get("app")
+    if app and app.bot:
+        try:
+            await app.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+        except Exception:
+            pass  # typing 失败不影响主流程
 
 
 # ---------- 文本工具 ----------
